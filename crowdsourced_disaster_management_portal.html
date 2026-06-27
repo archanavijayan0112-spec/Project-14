@@ -1,0 +1,496 @@
+
+<style>
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  :root {
+    --danger: #E24B4A; --danger-bg: #FCEBEB; --danger-border: #F09595;
+    --warning: #BA7517; --warning-bg: #FAEEDA; --warning-border: #EF9F27;
+    --success: #3B6D11; --success-bg: #EAF3DE; --success-border: #639922;
+    --accent: #185FA5; --accent-bg: #E6F1FB; --accent-border: #85B7EB;
+    --sidebar: 220px;
+  }
+  body { font-family: var(--font-sans, "Anthropic Sans", sans-serif); background: var(--surface-0); color: var(--text-primary); }
+
+  .app { display: grid; grid-template-columns: var(--sidebar) 1fr; grid-template-rows: 52px 1fr; height: 580px; overflow: hidden; }
+
+  /* Header */
+  .header { grid-column: 1/-1; display: flex; align-items: center; gap: 12px; padding: 0 16px; background: var(--surface-2); border-bottom: 0.5px solid var(--border); }
+  .header-logo { display: flex; align-items: center; gap: 8px; font-weight: 500; font-size: 15px; }
+  .alert-badge { margin-left: auto; display: flex; align-items: center; gap: 6px; background: var(--danger-bg); color: var(--danger); border: 0.5px solid var(--danger-border); border-radius: var(--radius, 8px); padding: 4px 10px; font-size: 12px; font-weight: 500; }
+  .pulse { width: 7px; height: 7px; border-radius: 50%; background: var(--danger); animation: pulse 1.5s ease infinite; }
+  @keyframes pulse { 0%,100%{opacity:1} 50%{opacity:.3} }
+  .header-time { font-size: 12px; color: var(--text-muted); margin-left: 12px; }
+
+  /* Sidebar */
+  .sidebar { background: var(--surface-1); border-right: 0.5px solid var(--border); overflow-y: auto; display: flex; flex-direction: column; }
+  .nav-section { padding: 8px; border-bottom: 0.5px solid var(--border); }
+  .nav-label { font-size: 10px; color: var(--text-muted); text-transform: uppercase; letter-spacing: .06em; padding: 6px 8px 4px; }
+  .nav-btn { display: flex; align-items: center; gap: 8px; width: 100%; padding: 7px 8px; border-radius: var(--radius, 8px); border: none; background: transparent; color: var(--text-secondary); font-size: 13px; cursor: pointer; text-align: left; transition: background .15s; }
+  .nav-btn:hover { background: var(--surface-2); }
+  .nav-btn.active { background: var(--accent-bg); color: var(--accent); font-weight: 500; }
+  .nav-btn i { font-size: 16px; flex-shrink: 0; }
+  .badge-count { margin-left: auto; font-size: 11px; padding: 1px 6px; border-radius: 10px; font-weight: 500; }
+  .badge-danger { background: var(--danger-bg); color: var(--danger); }
+  .badge-warning { background: var(--warning-bg); color: var(--warning); }
+  .badge-success { background: var(--success-bg); color: var(--success); }
+
+  /* Stats strip in sidebar */
+  .stat-strip { padding: 10px 8px; display: flex; flex-direction: column; gap: 6px; }
+  .stat-row { display: flex; align-items: center; justify-content: space-between; font-size: 12px; }
+  .stat-val { font-weight: 500; font-size: 14px; }
+  .stat-val.red { color: var(--danger); }
+  .stat-val.amber { color: var(--warning); }
+  .stat-val.green { color: var(--success); }
+
+  /* Main content area */
+  .main { overflow: hidden; display: flex; flex-direction: column; }
+  .panel { display: none; flex: 1; flex-direction: column; overflow: hidden; }
+  .panel.active { display: flex; }
+
+  /* Map panel */
+  .map-container { position: relative; flex: 1; background: #dce8f0; overflow: hidden; cursor: crosshair; }
+  .map-svg { width: 100%; height: 100%; }
+  .map-toolbar { display: flex; align-items: center; gap: 6px; padding: 8px 12px; background: var(--surface-2); border-bottom: 0.5px solid var(--border); }
+  .map-toolbar select, .map-toolbar button { font-size: 12px; padding: 4px 8px; border-radius: var(--radius, 8px); border: 0.5px solid var(--border-strong); background: var(--surface-2); color: var(--text-primary); cursor: pointer; }
+  .map-toolbar .sep { margin: 0 4px; color: var(--border-strong); }
+  .map-legend { position: absolute; bottom: 10px; left: 10px; background: var(--surface-2); border: 0.5px solid var(--border); border-radius: var(--radius, 8px); padding: 8px 10px; font-size: 11px; }
+  .legend-row { display: flex; align-items: center; gap: 6px; margin-bottom: 3px; }
+  .legend-dot { width: 10px; height: 10px; border-radius: 50%; flex-shrink: 0; }
+  .incident-popup { position: absolute; background: var(--surface-2); border: 0.5px solid var(--border); border-radius: 10px; padding: 10px 12px; font-size: 12px; min-width: 160px; pointer-events: none; display: none; box-shadow: 0 4px 12px rgba(0,0,0,.08); z-index: 10; }
+  .popup-title { font-weight: 500; font-size: 13px; margin-bottom: 4px; }
+  .popup-row { color: var(--text-secondary); margin-bottom: 2px; }
+  .popup-sev { display: inline-block; padding: 1px 6px; border-radius: 4px; font-size: 10px; font-weight: 500; margin-top: 4px; }
+
+  /* Volunteer table */
+  .table-panel { flex: 1; overflow-y: auto; }
+  table { width: 100%; border-collapse: collapse; font-size: 13px; }
+  thead th { position: sticky; top: 0; background: var(--surface-1); font-weight: 500; font-size: 11px; color: var(--text-secondary); text-transform: uppercase; letter-spacing: .04em; padding: 8px 12px; border-bottom: 0.5px solid var(--border); text-align: left; }
+  tbody tr { border-bottom: 0.5px solid var(--border); transition: background .1s; cursor: pointer; }
+  tbody tr:hover { background: var(--surface-1); }
+  tbody td { padding: 8px 12px; color: var(--text-primary); }
+  .status-pill { display: inline-flex; align-items: center; gap: 4px; padding: 2px 8px; border-radius: 10px; font-size: 11px; font-weight: 500; }
+  .pill-active { background: var(--success-bg); color: var(--success); }
+  .pill-standby { background: var(--accent-bg); color: var(--accent); }
+  .pill-deployed { background: var(--warning-bg); color: var(--warning); }
+  .skill-tag { display: inline-block; background: var(--surface-0); border: 0.5px solid var(--border); border-radius: 4px; font-size: 10px; padding: 1px 5px; margin-right: 3px; color: var(--text-secondary); }
+
+  /* Resource panel */
+  .resources-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; padding: 16px; overflow-y: auto; flex: 1; }
+  .resource-card { background: var(--surface-2); border: 0.5px solid var(--border); border-radius: 12px; padding: 14px; }
+  .resource-header { display: flex; align-items: center; justify-content: space-between; margin-bottom: 10px; }
+  .resource-name { font-weight: 500; font-size: 14px; display: flex; align-items: center; gap: 6px; }
+  .resource-loc { font-size: 11px; color: var(--text-muted); margin-top: 1px; }
+  .progress-row { display: flex; align-items: center; gap: 8px; margin-bottom: 6px; font-size: 12px; color: var(--text-secondary); }
+  .progress-bar { flex: 1; height: 6px; background: var(--surface-0); border-radius: 3px; overflow: hidden; }
+  .progress-fill { height: 100%; border-radius: 3px; transition: width .4s; }
+  .fill-danger { background: var(--danger); }
+  .fill-warning { background: var(--warning); }
+  .fill-success { background: var(--success); }
+  .progress-pct { font-size: 11px; min-width: 28px; text-align: right; font-weight: 500; }
+
+  /* Alerts panel */
+  .alerts-list { flex: 1; overflow-y: auto; padding: 8px; }
+  .alert-card { border-radius: 10px; padding: 12px 14px; margin-bottom: 8px; border: 0.5px solid; }
+  .alert-critical { background: var(--danger-bg); border-color: var(--danger-border); }
+  .alert-high { background: var(--warning-bg); border-color: var(--warning-border); }
+  .alert-moderate { background: var(--accent-bg); border-color: var(--accent-border); }
+  .alert-title { font-weight: 500; font-size: 13px; display: flex; align-items: center; gap: 6px; }
+  .alert-desc { font-size: 12px; color: var(--text-secondary); margin-top: 4px; line-height: 1.5; }
+  .alert-meta { font-size: 11px; color: var(--text-muted); margin-top: 6px; display: flex; gap: 12px; }
+  .sev-dot { width: 8px; height: 8px; border-radius: 50%; display: inline-block; }
+  .sev-critical { background: var(--danger); }
+  .sev-high { background: var(--warning); }
+  .sev-moderate { background: var(--accent); }
+
+  /* Panel toolbar */
+  .panel-bar { display: flex; align-items: center; gap: 8px; padding: 8px 12px; background: var(--surface-2); border-bottom: 0.5px solid var(--border); font-size: 13px; font-weight: 500; }
+  .panel-bar .spacer { flex: 1; }
+  .action-btn { font-size: 12px; padding: 4px 10px; border-radius: var(--radius, 8px); border: 0.5px solid var(--border-strong); background: var(--surface-2); color: var(--text-primary); cursor: pointer; display: flex; align-items: center; gap: 4px; }
+  .action-btn:hover { background: var(--surface-1); }
+  .action-btn.primary { background: var(--accent); color: #fff; border-color: var(--accent); }
+  .action-btn.primary:hover { opacity: .9; }
+
+  /* Water level indicator */
+  .water-strip { display: flex; gap: 6px; padding: 8px 12px; background: var(--danger-bg); border-bottom: 0.5px solid var(--danger-border); align-items: center; font-size: 12px; color: var(--danger); }
+  .water-strip i { font-size: 16px; }
+  .water-val { font-weight: 500; }
+</style>
+
+<div class="app">
+  <!-- Header -->
+  <header class="header">
+    <div class="header-logo">
+      <i class="ti ti-shield-check" style="font-size:20px;color:var(--accent)" aria-hidden="true"></i>
+      FloodGuard — Disaster Portal
+    </div>
+    <span style="font-size:12px;color:var(--text-muted);margin-left:4px">Palakkad District, Kerala</span>
+    <div style="margin-left:auto;display:flex;align-items:center;gap:10px">
+      <div class="alert-badge">
+        <span class="pulse"></span>
+        FLOOD WATCH ACTIVE
+      </div>
+      <span class="header-time" id="clock">--:--:--</span>
+    </div>
+  </header>
+
+  <!-- Sidebar -->
+  <aside class="sidebar">
+    <div class="nav-section">
+      <div class="nav-label">Operations</div>
+      <button class="nav-btn active" onclick="showPanel('map',this)">
+        <i class="ti ti-map-2" aria-hidden="true"></i> Live Map
+      </button>
+      <button class="nav-btn" onclick="showPanel('alerts',this)">
+        <i class="ti ti-bell-ringing" aria-hidden="true"></i> Incident Alerts
+        <span class="badge-count badge-danger">7</span>
+      </button>
+      <button class="nav-btn" onclick="showPanel('volunteers',this)">
+        <i class="ti ti-users" aria-hidden="true"></i> Volunteers
+        <span class="badge-count badge-success">42</span>
+      </button>
+      <button class="nav-btn" onclick="showPanel('resources',this)">
+        <i class="ti ti-package" aria-hidden="true"></i> Resources
+        <span class="badge-count badge-warning">6</span>
+      </button>
+    </div>
+    <div class="stat-strip">
+      <div class="nav-label" style="padding-left:0">Live metrics</div>
+      <div class="stat-row"><span style="color:var(--text-secondary)">Water level</span><span class="stat-val red">4.2 m ↑</span></div>
+      <div class="stat-row"><span style="color:var(--text-secondary)">Rainfall (24h)</span><span class="stat-val amber">187 mm</span></div>
+      <div class="stat-row"><span style="color:var(--text-secondary)">Affected zones</span><span class="stat-val red">12</span></div>
+      <div class="stat-row"><span style="color:var(--text-secondary)">Shelters open</span><span class="stat-val green">8</span></div>
+      <div class="stat-row"><span style="color:var(--text-secondary)">People evacuated</span><span class="stat-val green">2,840</span></div>
+      <div class="stat-row"><span style="color:var(--text-secondary)">Boats deployed</span><span class="stat-val amber">14</span></div>
+      <div class="stat-row"><span style="color:var(--text-secondary)">SOS calls (active)</span><span class="stat-val red">23</span></div>
+    </div>
+  </aside>
+
+  <!-- Main -->
+  <main class="main">
+
+    <!-- MAP PANEL -->
+    <div class="panel active" id="panel-map">
+      <div class="water-strip">
+        <i class="ti ti-wave-sine" aria-hidden="true"></i>
+        <span>Bharathapuzha River: <span class="water-val">4.2 m</span> — Danger level (3.5 m) exceeded. Upstream gates opened at 06:30 IST.</span>
+        <span style="margin-left:auto;background:var(--danger);color:#fff;border-radius:4px;padding:2px 7px;font-size:11px;font-weight:500">CRITICAL</span>
+      </div>
+      <div class="map-toolbar">
+        <i class="ti ti-layers-intersect" style="font-size:16px;color:var(--text-muted)" aria-hidden="true"></i>
+        <select onchange="updateLayer(this.value)">
+          <option value="flood">Flood zones</option>
+          <option value="shelters">Shelters only</option>
+          <option value="volunteers">Volunteer positions</option>
+        </select>
+        <span class="sep">|</span>
+        <button class="action-btn" onclick="addSOS()"><i class="ti ti-sos" aria-hidden="true"></i> Log SOS</button>
+        <button class="action-btn primary" onclick="sendPrompt('Show me the full incident report and evacuation plan for Palakkad district flood zones')"><i class="ti ti-file-report" aria-hidden="true"></i> Full report ↗</button>
+      </div>
+      <div class="map-container" id="map-box">
+        <svg class="map-svg" viewBox="0 0 460 360" id="map-svg" xmlns="http://www.w3.org/2000/svg">
+          <!-- Base roads -->
+          <rect width="460" height="360" fill="#dce8f0"/>
+          <!-- River (Bharathapuzha) -->
+          <path d="M0 200 Q60 210 110 195 Q150 185 200 200 Q260 218 320 205 Q380 192 460 208" fill="none" stroke="#4a8bc4" stroke-width="14" stroke-linecap="round" opacity=".7"/>
+          <path d="M0 200 Q60 210 110 195 Q150 185 200 200 Q260 218 320 205 Q380 192 460 208" fill="none" stroke="#6aabd8" stroke-width="10" stroke-linecap="round" opacity=".6"/>
+          <!-- Flood zones (blue overlays) -->
+          <ellipse cx="160" cy="200" rx="80" ry="55" fill="#3B8BD4" opacity=".22" id="fz1"/>
+          <ellipse cx="300" cy="205" rx="70" ry="48" fill="#3B8BD4" opacity=".18" id="fz2"/>
+          <ellipse cx="80" cy="215" rx="55" ry="40" fill="#E24B4A" opacity=".2" id="fz3"/>
+          <ellipse cx="390" cy="200" rx="50" ry="38" fill="#BA7517" opacity=".2" id="fz4"/>
+          <!-- Roads -->
+          <line x1="0" y1="140" x2="460" y2="140" stroke="#b8cdd6" stroke-width="2"/>
+          <line x1="230" y1="0" x2="230" y2="360" stroke="#b8cdd6" stroke-width="2"/>
+          <line x1="0" y1="280" x2="460" y2="280" stroke="#b8cdd6" stroke-width="1.5" stroke-dasharray="6 4"/>
+          <line x1="120" y1="0" x2="120" y2="360" stroke="#b8cdd6" stroke-width="1.5" stroke-dasharray="6 4"/>
+          <!-- Shelter icons -->
+          <g class="incident-marker" data-type="shelter" data-name="Govt. High School Shelter" data-cap="450/600" data-status="Open" data-sev="open" onclick="showPopup(event,'Govt. High School Shelter','Capacity: 450/600','Open',165,90)">
+            <rect x="155" y="80" width="22" height="22" rx="4" fill="#3B6D11" opacity=".9"/>
+            <text x="166" y="95" text-anchor="middle" fill="#fff" font-size="13" font-family="sans-serif">🏫</text>
+          </g>
+          <g class="incident-marker" onclick="showPopup(event,'Panchayat Hall Shelter','Capacity: 180/250','Open',305,115)">
+            <rect x="295" y="105" width="22" height="22" rx="4" fill="#3B6D11" opacity=".9"/>
+            <text x="306" y="120" text-anchor="middle" fill="#fff" font-size="13" font-family="sans-serif">🏫</text>
+          </g>
+          <g class="incident-marker" onclick="showPopup(event,'Church Relief Center','Capacity: 310/350','Open',62,248)">
+            <rect x="52" y="238" width="22" height="22" rx="4" fill="#3B6D11" opacity=".9"/>
+            <text x="63" y="253" text-anchor="middle" fill="#fff" font-size="13" font-family="sans-serif">🏫</text>
+          </g>
+          <!-- SOS markers -->
+          <g class="incident-marker sos" onclick="showPopup(event,'SOS: Family trapped','4 people, 2nd floor','Critical',92,225)">
+            <circle cx="92" cy="225" r="9" fill="#E24B4A" opacity=".95"/>
+            <text x="92" y="229" text-anchor="middle" fill="#fff" font-size="10" font-weight="bold" font-family="sans-serif">!</text>
+          </g>
+          <g class="incident-marker sos" onclick="showPopup(event,'SOS: Elderly person','Medical attention needed','Critical',195,215)">
+            <circle cx="195" cy="215" r="9" fill="#E24B4A" opacity=".95"/>
+            <text x="195" y="219" text-anchor="middle" fill="#fff" font-size="10" font-weight="bold" font-family="sans-serif">!</text>
+          </g>
+          <g class="incident-marker sos" onclick="showPopup(event,'SOS: Livestock rescue','Farm animals stranded','High',345,210)">
+            <circle cx="345" cy="210" r="8" fill="#BA7517" opacity=".95"/>
+            <text x="345" y="214" text-anchor="middle" fill="#fff" font-size="10" font-weight="bold" font-family="sans-serif">!</text>
+          </g>
+          <!-- Boat positions -->
+          <g onclick="showPopup(event,'Rescue Boat RB-04','2 crew, near zone A','Deployed',155,195)">
+            <rect x="143" y="187" width="24" height="16" rx="4" fill="#185FA5" opacity=".9"/>
+            <text x="155" y="199" text-anchor="middle" fill="#fff" font-size="11" font-family="sans-serif">⛵</text>
+          </g>
+          <g onclick="showPopup(event,'Rescue Boat RB-07','3 crew, zone C','En route',88,205)">
+            <rect x="76" y="197" width="24" height="16" rx="4" fill="#185FA5" opacity=".9"/>
+            <text x="88" y="209" text-anchor="middle" fill="#fff" font-size="11" font-family="sans-serif">⛵</text>
+          </g>
+          <!-- River label -->
+          <text x="230" y="186" text-anchor="middle" fill="#185FA5" font-size="10" font-family="sans-serif" opacity=".7">Bharathapuzha River</text>
+          <!-- Zone labels -->
+          <text x="78" y="243" text-anchor="middle" fill="#A32D2D" font-size="9" font-family="sans-serif" font-weight="600">ZONE A (Critical)</text>
+          <text x="160" y="172" text-anchor="middle" fill="#185FA5" font-size="9" font-family="sans-serif">Zone B</text>
+          <text x="300" y="175" text-anchor="middle" fill="#185FA5" font-size="9" font-family="sans-serif">Zone C</text>
+          <text x="390" y="182" text-anchor="middle" fill="#854F0B" font-size="9" font-family="sans-serif">Zone D (High)</text>
+          <!-- Checkpoint markers -->
+          <circle cx="230" cy="140" r="5" fill="#534AB7" opacity=".85"/>
+          <text x="240" y="136" fill="#3C3489" font-size="8" font-family="sans-serif">Checkpoint NH544</text>
+          <circle cx="120" cy="280" r="5" fill="#534AB7" opacity=".85"/>
+          <text x="130" y="276" fill="#3C3489" font-size="8" font-family="sans-serif">Relief depot</text>
+        </svg>
+        <!-- Popup -->
+        <div class="incident-popup" id="popup">
+          <div class="popup-title" id="popup-title">–</div>
+          <div class="popup-row" id="popup-detail">–</div>
+          <div class="popup-row" id="popup-status">–</div>
+          <span class="popup-sev" id="popup-sev"></span>
+        </div>
+        <!-- Legend -->
+        <div class="map-legend">
+          <div class="legend-row"><span class="legend-dot" style="background:#E24B4A"></span> SOS / critical</div>
+          <div class="legend-row"><span class="legend-dot" style="background:#BA7517"></span> High alert</div>
+          <div class="legend-row"><span class="legend-dot" style="background:#3B6D11"></span> Shelter open</div>
+          <div class="legend-row"><span class="legend-dot" style="background:#185FA5"></span> Rescue boat</div>
+        </div>
+      </div>
+    </div>
+
+    <!-- ALERTS PANEL -->
+    <div class="panel" id="panel-alerts">
+      <div class="panel-bar">
+        <i class="ti ti-bell-ringing" aria-hidden="true"></i> Incident Alerts
+        <span class="spacer"></span>
+        <button class="action-btn" onclick="sendPrompt('Generate a situation report for all active flood incidents in Palakkad district')"><i class="ti ti-file-analytics" aria-hidden="true"></i> Sitrep ↗</button>
+      </div>
+      <div class="alerts-list">
+        <div class="alert-card alert-critical">
+          <div class="alert-title"><span class="sev-dot sev-critical"></span> Family of 4 trapped — Ward 7, Ottapalam</div>
+          <div class="alert-desc">2-storey structure, ground floor submerged. Elderly member (72) requires medical assistance. Cannot move independently. Water rising at approx. 10 cm/hour.</div>
+          <div class="alert-meta"><span>⏱ 18 min ago</span><span>📍 Zone A</span><span>Reported by: Raju K. (civilian)</span></div>
+        </div>
+        <div class="alert-card alert-critical">
+          <div class="alert-title"><span class="sev-dot sev-critical"></span> Bridge NH544 — structural risk</div>
+          <div class="alert-desc">Water overtopping bridge deck. Fast current with debris. Road closed. Alternate route via Shoranur bypass recommended for all emergency vehicles.</div>
+          <div class="alert-meta"><span>⏱ 32 min ago</span><span>📍 Zone B/C boundary</span><span>Reported by: PWD team</span></div>
+        </div>
+        <div class="alert-card alert-high">
+          <div class="alert-title"><span class="sev-dot sev-high"></span> 14 livestock animals stranded — Zone D farm</div>
+          <div class="alert-desc">Cattle on elevated field pad, water rising. Owner (Suresh M.) present. Requires animal rescue unit and large boat. Veterinary assistance may be needed.</div>
+          <div class="alert-meta"><span>⏱ 45 min ago</span><span>📍 Zone D</span><span>Reported by: Suresh M. (civilian)</span></div>
+        </div>
+        <div class="alert-card alert-high">
+          <div class="alert-title"><span class="sev-dot sev-high"></span> Power outage — 3 wards affected</div>
+          <div class="alert-desc">KSEB lines down in Wards 5, 7, 11. Shelter at Govt. High School running on diesel generator. Fuel reserves: ~6 hours. Requesting refuel.</div>
+          <div class="alert-meta"><span>⏱ 1h 10m ago</span><span>📍 Zones A & B</span><span>Source: KSEB control room</span></div>
+        </div>
+        <div class="alert-card alert-moderate">
+          <div class="alert-title"><span class="sev-dot sev-moderate"></span> Medical supply request — Shelter 2</div>
+          <div class="alert-desc">Panchayat Hall shelter running low on ORS packets, antihypertensive medication, and insulin. 8 diabetic patients among evacuees. Nearest PHC: 3 km, road passable.</div>
+          <div class="alert-meta"><span>⏱ 2h ago</span><span>📍 Zone C</span><span>Reported by: Shelter coordinator</span></div>
+        </div>
+        <div class="alert-card alert-moderate">
+          <div class="alert-title"><span class="sev-dot sev-moderate"></span> Mobile network outage — Zone A north</div>
+          <div class="alert-desc">BSNL and Jio towers down. ~1,200 residents without connectivity. Walkie-talkie relay team deployed to maintain communication with rescue units.</div>
+          <div class="alert-meta"><span>⏱ 3h ago</span><span>📍 Zone A north</span><span>Source: District control room</span></div>
+        </div>
+      </div>
+    </div>
+
+    <!-- VOLUNTEERS PANEL -->
+    <div class="panel" id="panel-volunteers">
+      <div class="panel-bar">
+        <i class="ti ti-users" aria-hidden="true"></i> Volunteer coordination
+        <span class="spacer"></span>
+        <button class="action-btn primary" onclick="sendPrompt('Suggest optimal volunteer assignments for the current flood rescue operations in Palakkad based on skill sets and zone needs')">Assign optimally ↗</button>
+      </div>
+      <div class="table-panel">
+        <table>
+          <thead>
+            <tr>
+              <th>Volunteer</th>
+              <th>Skills</th>
+              <th>Zone</th>
+              <th>Status</th>
+              <th>Last check-in</th>
+            </tr>
+          </thead>
+          <tbody id="volunteer-tbody">
+          </tbody>
+        </table>
+      </div>
+    </div>
+
+    <!-- RESOURCES PANEL -->
+    <div class="panel" id="panel-resources">
+      <div class="panel-bar">
+        <i class="ti ti-package" aria-hidden="true"></i> Resource allocation
+        <span class="spacer"></span>
+        <button class="action-btn" onclick="sendPrompt('Identify which disaster relief resources are critically low and recommend emergency procurement steps for Palakkad flood response')">Identify gaps ↗</button>
+      </div>
+      <div class="resources-grid" id="resources-grid"></div>
+    </div>
+
+  </main>
+</div>
+
+<script>
+// Clock
+function tick() {
+  const now = new Date();
+  document.getElementById('clock').textContent = now.toLocaleTimeString('en-IN',{hour:'2-digit',minute:'2-digit',second:'2-digit',hour12:false}) + ' IST';
+}
+tick(); setInterval(tick, 1000);
+
+// Panel switching
+function showPanel(id, btn) {
+  document.querySelectorAll('.panel').forEach(p => p.classList.remove('active'));
+  document.querySelectorAll('.nav-btn').forEach(b => b.classList.remove('active'));
+  document.getElementById('panel-' + id).classList.add('active');
+  btn.classList.add('active');
+  document.getElementById('popup').style.display = 'none';
+}
+
+// Map popup
+function showPopup(e, title, detail, status, px, py) {
+  const popup = document.getElementById('popup');
+  const sev = document.getElementById('popup-sev');
+  document.getElementById('popup-title').textContent = title;
+  document.getElementById('popup-detail').textContent = detail;
+  document.getElementById('popup-status').textContent = 'Status: ' + status;
+  const sevMap = {
+    'Critical': ['background:#FCEBEB;color:#A32D2D;border:0.5px solid #F09595', 'Critical'],
+    'High': ['background:#FAEEDA;color:#633806;border:0.5px solid #EF9F27', 'High'],
+    'Open': ['background:#EAF3DE;color:#3B6D11;border:0.5px solid #639922', 'Open'],
+    'Deployed': ['background:#E6F1FB;color:#0C447C;border:0.5px solid #85B7EB', 'Deployed'],
+    'En route': ['background:#EEEDFE;color:#3C3489;border:0.5px solid #AFA9EC', 'En route'],
+  };
+  const s = sevMap[status] || sevMap['Open'];
+  sev.style.cssText = s[0]; sev.textContent = s[1];
+  const box = document.getElementById('map-box');
+  const rect = box.getBoundingClientRect();
+  // Scale from SVG coords
+  const scaleX = box.clientWidth / 460;
+  const scaleY = box.clientHeight / 360;
+  let left = px * scaleX + 14;
+  let top = py * scaleY - 80;
+  if (left + 170 > box.clientWidth) left = px * scaleX - 180;
+  if (top < 0) top = 8;
+  popup.style.left = left + 'px';
+  popup.style.top = top + 'px';
+  popup.style.display = 'block';
+  setTimeout(() => { document.addEventListener('click', () => { popup.style.display='none'; }, {once:true}); }, 50);
+  e.stopPropagation();
+}
+
+// Layer switcher
+function updateLayer(v) {
+  const fz = ['fz1','fz2','fz3','fz4'];
+  fz.forEach(id => {
+    const el = document.getElementById(id);
+    if (el) el.style.display = (v === 'shelters') ? 'none' : '';
+  });
+}
+
+// Add SOS
+let sosCount = 0;
+function addSOS() {
+  sosCount++;
+  const badge = document.querySelector('.badge-danger');
+  if (badge) badge.textContent = (7 + sosCount);
+  alert('SOS logged. Dispatch notified. Incident #' + (sosCount + 100) + ' created.');
+}
+
+// Volunteers data
+const volunteers = [
+  { name: 'Arun Menon', skills: ['Boat rescue','First aid'], zone: 'A', status: 'deployed', checkin: '4 min ago' },
+  { name: 'Priya Nair', skills: ['Medical','Triage'], zone: 'B', status: 'active', checkin: '12 min ago' },
+  { name: 'Sunil Kumar', skills: ['Boat rescue','Swimming'], zone: 'A', status: 'deployed', checkin: '6 min ago' },
+  { name: 'Deepa Raj', skills: ['Coordination','Logistics'], zone: 'Control', status: 'active', checkin: '2 min ago' },
+  { name: 'Jithin PS', skills: ['Electrical','Generator'], zone: 'B', status: 'deployed', checkin: '35 min ago' },
+  { name: 'Sreeja Mohan', skills: ['Counseling','Care'], zone: 'Shelter 1', status: 'active', checkin: '8 min ago' },
+  { name: 'Ajith Thomas', skills: ['Driving','4WD'], zone: 'D', status: 'standby', checkin: '20 min ago' },
+  { name: 'Nitha George', skills: ['Nursing','First aid'], zone: 'Shelter 2', status: 'active', checkin: '5 min ago' },
+  { name: 'Renjith KR', skills: ['Boat rescue'], zone: 'C', status: 'deployed', checkin: '18 min ago' },
+  { name: 'Asha Balan', skills: ['Cooking','Nutrition'], zone: 'Shelter 1', status: 'active', checkin: '10 min ago' },
+  { name: 'Manoj VK', skills: ['Ham radio','Comms'], zone: 'A north', status: 'deployed', checkin: '45 min ago' },
+  { name: 'Lekha Pillai', skills: ['Child welfare','Care'], zone: 'Shelter 3', status: 'standby', checkin: '1h ago' },
+];
+const tbody = document.getElementById('volunteer-tbody');
+const pillClass = { active:'pill-active', standby:'pill-standby', deployed:'pill-deployed' };
+volunteers.forEach(v => {
+  const tr = document.createElement('tr');
+  tr.onclick = () => sendPrompt('Show tasks and current assignment for volunteer ' + v.name + ' during the Palakkad flood response');
+  tr.innerHTML = `
+    <td><strong>${v.name}</strong></td>
+    <td>${v.skills.map(s=>`<span class="skill-tag">${s}</span>`).join('')}</td>
+    <td>${v.zone}</td>
+    <td><span class="status-pill ${pillClass[v.status]}">${v.status}</span></td>
+    <td style="color:var(--text-muted);font-size:12px">${v.checkin}</td>`;
+  tbody.appendChild(tr);
+});
+
+// Resources data
+const resources = [
+  { name: 'Food packets', icon: 'ti-package', loc: 'Relief depot, Zone B', items: [
+    { label: 'Rice meals', pct: 68, col: 'warning' },
+    { label: 'Biscuit packets', pct: 82, col: 'success' },
+    { label: 'Water bottles', pct: 31, col: 'danger' },
+  ]},
+  { name: 'Medical supplies', icon: 'ti-first-aid-kit', loc: 'PHC Store & Shelter 2', items: [
+    { label: 'ORS sachets', pct: 22, col: 'danger' },
+    { label: 'Bandages', pct: 55, col: 'warning' },
+    { label: 'Insulin vials', pct: 18, col: 'danger' },
+  ]},
+  { name: 'Rescue boats', icon: 'ti-sailboat', loc: 'River launch point', items: [
+    { label: 'Motorised (10)', pct: 60, col: 'warning' },
+    { label: 'Inflatable (8)', pct: 75, col: 'success' },
+    { label: 'Life jackets', pct: 45, col: 'warning' },
+  ]},
+  { name: 'Power & comms', icon: 'ti-bolt', loc: 'Shelter 1 & Control', items: [
+    { label: 'Generator fuel', pct: 40, col: 'warning' },
+    { label: 'Walkie-talkies', pct: 80, col: 'success' },
+    { label: 'Satellite phone', pct: 90, col: 'success' },
+  ]},
+  { name: 'Shelter capacity', icon: 'ti-building-community', loc: '8 active shelters', items: [
+    { label: 'Shelter 1 (600)', pct: 75, col: 'warning' },
+    { label: 'Shelter 2 (250)', pct: 72, col: 'warning' },
+    { label: 'Shelter 3 (350)', pct: 89, col: 'danger' },
+  ]},
+  { name: 'Vehicles', icon: 'ti-truck', loc: 'District vehicle pool', items: [
+    { label: '4WD trucks', pct: 50, col: 'warning' },
+    { label: 'Ambulances', pct: 33, col: 'danger' },
+    { label: 'Cranes', pct: 100, col: 'success' },
+  ]},
+];
+const grid = document.getElementById('resources-grid');
+resources.forEach(r => {
+  const card = document.createElement('div');
+  card.className = 'resource-card';
+  card.innerHTML = `
+    <div class="resource-header">
+      <div>
+        <div class="resource-name"><i class="ti ${r.icon}" aria-hidden="true"></i>${r.name}</div>
+        <div class="resource-loc">${r.loc}</div>
+      </div>
+    </div>
+    ${r.items.map(it => `
+      <div class="progress-row">
+        <span style="min-width:110px;font-size:11px">${it.label}</span>
+        <div class="progress-bar"><div class="progress-fill fill-${it.col}" style="width:${it.pct}%"></div></div>
+        <span class="progress-pct" style="color:var(--${it.col === 'success' ? 'success' : it.col === 'danger' ? 'danger' : 'warning'})">${it.pct}%</span>
+      </div>`).join('')}`;
+  grid.appendChild(card);
+});
+</script>
