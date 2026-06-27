@@ -1,0 +1,9 @@
+package com.floodguard.enums;
+
+public enum Severity {
+    CRITICAL,
+    HIGH,
+    MODERATE,
+    LOW,
+    INFO
+}

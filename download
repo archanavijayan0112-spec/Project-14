@@ -1,0 +1,86 @@
+package com.floodguard.controller;
+
+import com.floodguard.entity.User;
+import com.floodguard.repository.UserRepository;
+import com.floodguard.service.JwtService;
+import jakarta.validation.Valid;
+import jakarta.validation.constraints.NotBlank;
+import lombok.*;
+import lombok.extern.slf4j.Slf4j;
+import org.springframework.http.ResponseEntity;
+import org.springframework.security.authentication.*;
+import org.springframework.security.core.userdetails.UserDetails;
+import org.springframework.security.core.userdetails.UserDetailsService;
+import org.springframework.security.crypto.password.PasswordEncoder;
+import org.springframework.web.bind.annotation.*;
+
+import java.util.Map;
+import java.util.Set;
+
+@Slf4j
+@RestController
+@RequestMapping("/auth")
+@RequiredArgsConstructor
+@CrossOrigin(origins = "*")
+public class AuthController {
+
+    private final AuthenticationManager authenticationManager;
+    private final UserDetailsService userDetailsService;
+    private final UserRepository userRepository;
+    private final JwtService jwtService;
+    private final PasswordEncoder passwordEncoder;
+
+    /** POST /api/auth/login */
+    @PostMapping("/login")
+    public ResponseEntity<?> login(@Valid @RequestBody LoginRequest req) {
+        try {
+            authenticationManager.authenticate(
+                    new UsernamePasswordAuthenticationToken(req.getUsername(), req.getPassword()));
+        } catch (BadCredentialsException e) {
+            return ResponseEntity.status(401).body(Map.of("error", "Invalid credentials"));
+        }
+
+        UserDetails userDetails = userDetailsService.loadUserByUsername(req.getUsername());
+        String token = jwtService.generateToken(userDetails);
+
+        return ResponseEntity.ok(Map.of(
+                "token", token,
+                "username", req.getUsername(),
+                "roles", userDetails.getAuthorities().stream().map(a -> a.getAuthority()).toList(),
+                "expiresIn", jwtService.getExpirationMs()
+        ));
+    }
+
+    /** POST /api/auth/register — admin creates new operators */
+    @PostMapping("/register")
+    public ResponseEntity<?> register(@Valid @RequestBody RegisterRequest req) {
+        if (userRepository.existsByUsername(req.getUsername())) {
+            return ResponseEntity.badRequest().body(Map.of("error", "Username already taken"));
+        }
+
+        User user = User.builder()
+                .username(req.getUsername())
+                .password(passwordEncoder.encode(req.getPassword()))
+                .email(req.getEmail())
+                .roles(Set.of("ROLE_" + req.getRole().toUpperCase()))
+                .build();
+
+        userRepository.save(user);
+        log.info("New user registered: {} with role {}", req.getUsername(), req.getRole());
+        return ResponseEntity.ok(Map.of("message", "User registered successfully"));
+    }
+
+    @Data
+    static class LoginRequest {
+        @NotBlank private String username;
+        @NotBlank private String password;
+    }
+
+    @Data
+    static class RegisterRequest {
+        @NotBlank private String username;
+        @NotBlank private String password;
+        private String email;
+        @NotBlank private String role;  // ADMIN, COORDINATOR, FIELD_OFFICER
+    }
+}

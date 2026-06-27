@@ -1,0 +1,39 @@
+package com.floodguard.controller;
+
+import com.floodguard.entity.FloodZone;
+import com.floodguard.repository.FloodZoneRepository;
+import com.floodguard.service.DashboardService;
+import lombok.RequiredArgsConstructor;
+import org.springframework.http.ResponseEntity;
+import org.springframework.web.bind.annotation.*;
+
+import java.util.List;
+import java.util.Map;
+
+@RestController
+@RequestMapping("/dashboard")
+@RequiredArgsConstructor
+@CrossOrigin(origins = "*")
+public class DashboardController {
+
+    private final DashboardService dashboardService;
+    private final FloodZoneRepository floodZoneRepository;
+
+    /** GET /api/dashboard/summary */
+    @GetMapping("/summary")
+    public ResponseEntity<Map<String, Object>> getSummary() {
+        return ResponseEntity.ok(dashboardService.getSummary());
+    }
+
+    /** GET /api/dashboard/zones */
+    @GetMapping("/zones")
+    public ResponseEntity<List<FloodZone>> getAllZones() {
+        return ResponseEntity.ok(floodZoneRepository.findAll());
+    }
+
+    /** GET /api/dashboard/zones/evacuation */
+    @GetMapping("/zones/evacuation")
+    public ResponseEntity<List<FloodZone>> getEvacuationZones() {
+        return ResponseEntity.ok(floodZoneRepository.findByEvacuationRequiredTrue());
+    }
+}

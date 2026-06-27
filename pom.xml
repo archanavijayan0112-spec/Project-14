@@ -1,0 +1,80 @@
+package com.floodguard.controller;
+
+import com.floodguard.entity.Resource;
+import com.floodguard.enums.ResourceCategory;
+import com.floodguard.service.ResourceService;
+import jakarta.validation.Valid;
+import lombok.RequiredArgsConstructor;
+import org.springframework.http.HttpStatus;
+import org.springframework.http.ResponseEntity;
+import org.springframework.security.access.prepost.PreAuthorize;
+import org.springframework.web.bind.annotation.*;
+
+import java.util.List;
+import java.util.Map;
+
+@RestController
+@RequestMapping("/resources")
+@RequiredArgsConstructor
+@CrossOrigin(origins = "*")
+public class ResourceController {
+
+    private final ResourceService resourceService;
+
+    /** POST /api/resources */
+    @PostMapping
+    @PreAuthorize("hasAnyRole('COORDINATOR','ADMIN')")
+    public ResponseEntity<Resource> create(@Valid @RequestBody Resource resource) {
+        return ResponseEntity.status(HttpStatus.CREATED).body(resourceService.createResource(resource));
+    }
+
+    /** GET /api/resources */
+    @GetMapping
+    public ResponseEntity<List<Resource>> getAll() {
+        return ResponseEntity.ok(resourceService.getAll());
+    }
+
+    /** GET /api/resources/{id} */
+    @GetMapping("/{id}")
+    public ResponseEntity<Resource> getById(@PathVariable Long id) {
+        return ResponseEntity.ok(resourceService.findById(id));
+    }
+
+    /** GET /api/resources/category/{category} */
+    @GetMapping("/category/{category}")
+    public ResponseEntity<List<Resource>> getByCategory(@PathVariable ResourceCategory category) {
+        return ResponseEntity.ok(resourceService.getByCategory(category));
+    }
+
+    /** GET /api/resources/critical */
+    @GetMapping("/critical")
+    public ResponseEntity<List<Resource>> getCritical() {
+        return ResponseEntity.ok(resourceService.getCriticallyLow());
+    }
+
+    /** GET /api/resources/low */
+    @GetMapping("/low")
+    public ResponseEntity<List<Resource>> getLow() {
+        return ResponseEntity.ok(resourceService.getLowResources());
+    }
+
+    /** PATCH /api/resources/{id}/quantity */
+    @PatchMapping("/{id}/quantity")
+    @PreAuthorize("hasAnyRole('COORDINATOR','ADMIN','FIELD_OFFICER')")
+    public ResponseEntity<Resource> updateQuantity(
+            @PathVariable Long id,
+            @RequestBody Map<String, Object> body) {
+        int qty = ((Number) body.get("availableQuantity")).intValue();
+        String notes = (String) body.getOrDefault("notes", null);
+        return ResponseEntity.ok(resourceService.updateAvailableQuantity(id, qty, notes));
+    }
+
+    /** PATCH /api/resources/{id}/zone */
+    @PatchMapping("/{id}/zone")
+    @PreAuthorize("hasAnyRole('COORDINATOR','ADMIN')")
+    public ResponseEntity<Resource> allocateToZone(
+            @PathVariable Long id,
+            @RequestBody Map<String, String> body) {
+        return ResponseEntity.ok(resourceService.allocateToZone(id, body.get("zone")));
+    }
+}

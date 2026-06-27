@@ -1,0 +1,111 @@
+package com.floodguard.controller;
+
+import com.floodguard.entity.Incident;
+import com.floodguard.enums.IncidentStatus;
+import com.floodguard.service.IncidentService;
+import jakarta.validation.Valid;
+import lombok.RequiredArgsConstructor;
+import org.springframework.http.HttpStatus;
+import org.springframework.http.ResponseEntity;
+import org.springframework.security.access.prepost.PreAuthorize;
+import org.springframework.web.bind.annotation.*;
+
+import java.util.List;
+import java.util.Map;
+
+@RestController
+@RequestMapping("/incidents")
+@RequiredArgsConstructor
+@CrossOrigin(origins = "*")
+public class IncidentController {
+
+    private final IncidentService incidentService;
+
+    /**
+     * POST /api/incidents
+     * Submit a new incident or SOS. Open to all (no auth required for civilian reporting).
+     */
+    @PostMapping
+    public ResponseEntity<Incident> createIncident(@Valid @RequestBody Incident incident) {
+        Incident created = incidentService.createIncident(incident);
+        return ResponseEntity.status(HttpStatus.CREATED).body(created);
+    }
+
+    /**
+     * GET /api/incidents
+     * List all active (OPEN) incidents.
+     */
+    @GetMapping
+    public ResponseEntity<List<Incident>> getActiveIncidents() {
+        return ResponseEntity.ok(incidentService.getActiveIncidents());
+    }
+
+    /**
+     * GET /api/incidents/{id}
+     */
+    @GetMapping("/{id}")
+    public ResponseEntity<Incident> getIncident(@PathVariable Long id) {
+        return ResponseEntity.ok(incidentService.findById(id));
+    }
+
+    /**
+     * GET /api/incidents/sos
+     * Active SOS alerts for the dispatch board.
+     */
+    @GetMapping("/sos")
+    public ResponseEntity<List<Incident>> getActiveSosAlerts() {
+        return ResponseEntity.ok(incidentService.getActiveSosAlerts());
+    }
+
+    /**
+     * GET /api/incidents/zone/{zone}
+     */
+    @GetMapping("/zone/{zone}")
+    public ResponseEntity<List<Incident>> getByZone(@PathVariable String zone) {
+        return ResponseEntity.ok(incidentService.getByZone(zone));
+    }
+
+    /**
+     * GET /api/incidents/nearby?lat=&lng=&radius=
+     */
+    @GetMapping("/nearby")
+    public ResponseEntity<List<Incident>> getNearby(
+            @RequestParam double lat,
+            @RequestParam double lng,
+            @RequestParam(defaultValue = "5.0") double radius) {
+        return ResponseEntity.ok(incidentService.getIncidentsNear(lat, lng, radius));
+    }
+
+    /**
+     * PATCH /api/incidents/{id}/status
+     */
+    @PatchMapping("/{id}/status")
+    @PreAuthorize("hasAnyRole('COORDINATOR','ADMIN','FIELD_OFFICER')")
+    public ResponseEntity<Incident> updateStatus(
+            @PathVariable Long id,
+            @RequestBody Map<String, String> body) {
+        IncidentStatus status = IncidentStatus.valueOf(body.get("status").toUpperCase());
+        String updatedBy = body.getOrDefault("updatedBy", "system");
+        String note = body.get("note");
+        return ResponseEntity.ok(incidentService.updateStatus(id, status, updatedBy, note));
+    }
+
+    /**
+     * POST /api/incidents/{id}/assign/{volunteerId}
+     */
+    @PostMapping("/{id}/assign/{volunteerId}")
+    @PreAuthorize("hasAnyRole('COORDINATOR','ADMIN')")
+    public ResponseEntity<Incident> assignVolunteer(
+            @PathVariable Long id,
+            @PathVariable Long volunteerId) {
+        return ResponseEntity.ok(incidentService.assignVolunteer(id, volunteerId));
+    }
+
+    /**
+     * GET /api/incidents/stats
+     */
+    @GetMapping("/stats")
+    public ResponseEntity<Map<String, Long>> getStats() {
+        return ResponseEntity.ok(incidentService.getSummaryStats());
+    }
+}

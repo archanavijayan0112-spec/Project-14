@@ -1,0 +1,86 @@
+package com.floodguard.entity;
+
+import com.floodguard.enums.VolunteerStatus;
+import jakarta.persistence.*;
+import jakarta.validation.constraints.NotBlank;
+import lombok.*;
+import org.hibernate.annotations.CreationTimestamp;
+import org.hibernate.annotations.UpdateTimestamp;
+
+import java.time.LocalDateTime;
+import java.util.ArrayList;
+import java.util.List;
+
+@Entity
+@Table(name = "volunteers")
+@Data
+@Builder
+@NoArgsConstructor
+@AllArgsConstructor
+public class Volunteer {
+
+    @Id
+    @GeneratedValue(strategy = GenerationType.IDENTITY)
+    private Long id;
+
+    @NotBlank
+    @Column(name = "full_name", nullable = false)
+    private String fullName;
+
+    @Column(unique = true)
+    private String phone;
+
+    @Column(unique = true)
+    private String email;
+
+    @ElementCollection(fetch = FetchType.EAGER)
+    @CollectionTable(name = "volunteer_skills", joinColumns = @JoinColumn(name = "volunteer_id"))
+    @Column(name = "skill")
+    @Builder.Default
+    private List<String> skills = new ArrayList<>();
+
+    @Enumerated(EnumType.STRING)
+    @Column(nullable = false)
+    @Builder.Default
+    private VolunteerStatus status = VolunteerStatus.STANDBY;
+
+    @Column(name = "assigned_zone")
+    private String assignedZone;
+
+    @Column(name = "current_latitude")
+    private Double currentLatitude;
+
+    @Column(name = "current_longitude")
+    private Double currentLongitude;
+
+    @Column(name = "last_checkin")
+    private LocalDateTime lastCheckin;
+
+    @Column(name = "is_certified_rescue")
+    @Builder.Default
+    private boolean isCertifiedRescue = false;
+
+    @Column(name = "is_medical_trained")
+    @Builder.Default
+    private boolean isMedicalTrained = false;
+
+    @Column(name = "has_boat")
+    @Builder.Default
+    private boolean hasBoat = false;
+
+    @Column(name = "has_vehicle")
+    @Builder.Default
+    private boolean hasVehicle = false;
+
+    @OneToMany(mappedBy = "assignedVolunteer")
+    @Builder.Default
+    private List<Incident> assignedIncidents = new ArrayList<>();
+
+    @CreationTimestamp
+    @Column(name = "created_at", updatable = false)
+    private LocalDateTime createdAt;
+
+    @UpdateTimestamp
+    @Column(name = "updated_at")
+    private LocalDateTime updatedAt;
+}
